@@ -72,10 +72,9 @@ SETTINGS = {
 #    <b>bold</b>   <i>italic</i>   and line breaks with \n
 # -------------------------------------------------------------
 SIGNOFF = (
-    "—\n"
-    "<b>Your Name</b>\n"
-    "Your Agency · CEA Reg. No. R0000000X\n"
-    "📱 +65 0000 0000   ✉️ you@email.com\n"
-    "<i>Shared as general information, not financial or property advice.</i>"
+    '—\n'
+    '<b>KCG Homes</b>\n'
+    '🌐 <a href="https://kcghomes.sg">kcghomes.sg</a>   '
+    '📷 <a href="https://instagram.com/kcghomes.sg">@kcghomes.sg</a>'
 )
 
