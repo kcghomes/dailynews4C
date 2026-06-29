@@ -59,3 +59,23 @@ SETTINGS = {
     "gnews_gl": "SG",
     "gnews_ceid": "SG:en",
 }
+
+
+# -------------------------------------------------------------
+#  SIGN-OFF
+# -------------------------------------------------------------
+#  Appended to the bottom of every message, so each digest is
+#  ready to forward to clients. Edit the details below.
+#  Leave SIGNOFF = "" to turn it off.
+#
+#  You can use simple formatting:
+#    <b>bold</b>   <i>italic</i>   and line breaks with \n
+# -------------------------------------------------------------
+SIGNOFF = (
+    "—\n"
+    "<b>Your Name</b>\n"
+    "Your Agency · CEA Reg. No. R0000000X\n"
+    "📱 +65 0000 0000   ✉️ you@email.com\n"
+    "<i>Shared as general information, not financial or property advice.</i>"
+)
+
