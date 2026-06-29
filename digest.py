@@ -28,6 +28,11 @@ import feedparser
 
 from config import TOPICS, DIRECT_FEEDS, SETTINGS
 
+try:
+    from config import SIGNOFF
+except ImportError:
+    SIGNOFF = ""
+
 # ----------------------------------------------------------------------
 # Optional: load a local .env file when running on your own machine.
 # (On GitHub Actions the secrets are already injected as env vars.)
@@ -269,6 +274,8 @@ def _chunks(text, limit=3900):
 
 
 def send_telegram(text):
+    if SIGNOFF.strip():
+        text = f"{text}\n\n{SIGNOFF}"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     for part in _chunks(text):
         payload = {
