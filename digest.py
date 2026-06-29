@@ -55,17 +55,22 @@ GNEWS = ("https://news.google.com/rss/search?q={q}"
 # ----------------------------------------------------------------------
 # 1. FETCH
 # ----------------------------------------------------------------------
-def build_feed_list():
+def build_feed_list(query_suffix=""):
+    # query_suffix lets the weekly job append Google News' "when:7d"
+    # operator to pull a whole week per topic.
     feeds = []
     for label, query in TOPICS:
         url = GNEWS.format(
-            q=urllib.parse.quote(query),
+            q=urllib.parse.quote(query + query_suffix),
             hl=SETTINGS["gnews_hl"], gl=SETTINGS["gnews_gl"],
             ceid=SETTINGS["gnews_ceid"],
         )
         feeds.append((label, url, True))     # True = is a topic search
-    for name, url in DIRECT_FEEDS:
-        feeds.append((name, url, False))
+    # Direct feeds can't be date-filtered via query; include them only for
+    # the daily run (the recency window handles freshness there).
+    if not query_suffix:
+        for name, url in DIRECT_FEEDS:
+            feeds.append((name, url, False))
     return feeds
 
 
@@ -94,12 +99,17 @@ def _source_of(entry, fallback):
     return fallback
 
 
-def fetch_recent():
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=SETTINGS["lookback_hours"])
+def fetch_recent(lookback_hours=None, max_per_topic=None,
+                 max_total=None, query_suffix=""):
+    lookback_hours = lookback_hours or SETTINGS["lookback_hours"]
+    max_per_topic  = max_per_topic  or SETTINGS["max_per_topic"]
+    max_total      = max_total      or SETTINGS["max_total"]
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
     seen_titles = set()
     grouped = {}            # label -> list of items
 
-    for label, url, is_topic in build_feed_list():
+    for label, url, is_topic in build_feed_list(query_suffix):
         try:
             parsed = feedparser.parse(url, request_headers={"User-Agent": "Mozilla/5.0"})
         except Exception as e:
@@ -127,7 +137,7 @@ def fetch_recent():
                 "summary": _clean(e.get("summary", ""))[:400],
                 "link": e.get("link", ""),
             })
-            if len(kept) >= SETTINGS["max_per_topic"]:
+            if len(kept) >= max_per_topic:
                 break
 
         if kept:
@@ -136,11 +146,10 @@ def fetch_recent():
 
     # enforce global cap
     total = sum(len(v) for v in grouped.values())
-    if total > SETTINGS["max_total"]:
-        budget = SETTINGS["max_total"]
+    if total > max_total:
         trimmed = {}
         for label, items in grouped.items():
-            take = max(1, round(len(items) / total * budget))
+            take = max(1, round(len(items) / total * max_total))
             trimmed[label] = items[:take]
         grouped = trimmed
 
@@ -150,46 +159,49 @@ def fetch_recent():
 # ----------------------------------------------------------------------
 # 2. ANALYSE (Claude)
 # ----------------------------------------------------------------------
-SYSTEM_PROMPT = """You are a sharp, sceptical research analyst writing a daily \
-briefing for a Singapore real-estate professional. Your job is to turn raw \
-headlines into a tight, useful read on what matters for the Singapore property \
-market — covering both direct drivers (HDB, private/condo, cooling measures, \
-SORA/mortgage rates, en-bloc, supply) and indirect ones (US Fed rates, China \
-property, global inflation, SGD, regional capital flows).
+SYSTEM_PROMPT = """You write a short, friendly daily update about the Singapore \
+property market for ordinary readers — people thinking about buying, selling, or \
+renting a home, who are NOT finance experts. A property agent will forward this \
+update directly to clients, so it must be clear, warm, and easy to share.
 
-Rules:
-- Prioritise and clearly attribute reputable outlets (Reuters, Bloomberg, CNA, \
-The Business Times, The Straits Times, EdgeProp, official central banks). If an \
-item looks thin or from an unreliable source, say so or drop it.
-- Be concrete. No filler, no hedging fluff. If a day is quiet, say it's quiet.
-- Distinguish fact (what was reported) from your inference (what it may mean).
-- You are reading headlines and snippets, not full articles — don't overstate \
-certainty."""
+How to write:
+- Plain, everyday English. Short sentences. No jargon.
+- If you must mention a technical term (e.g. SORA, ABSD, the Fed), explain it in \
+a few simple words the first time, like you're talking to a friend.
+- Always connect news back to what it means for a normal person: home prices, \
+loan/mortgage repayments, rents, or whether it's a good time to act.
+- Be warm and helpful, never alarmist. Calm, balanced tone.
+- Be accurate. Only use what's in the headlines. If something is uncertain, say \
+"early signs suggest" rather than stating it as fact. Don't invent numbers.
+- Prefer trustworthy news sources. If the day is quiet, just say so briefly."""
 
-USER_TEMPLATE = """Here are today's articles, grouped by topic. Date: {date}.
+USER_TEMPLATE = """Here are today's news headlines, grouped by topic. Date: {date}.
 
 {articles}
 
-Write the briefing in this structure, using ONLY <b>bold</b> tags for headers \
-(no markdown, no other HTML — it will be sent to Telegram):
+Write a short, friendly daily update for ordinary readers. Use ONLY <b>bold</b> \
+tags for headers (no markdown, no other HTML — it goes to Telegram). Use simple \
+language someone can forward to clients as-is.
 
-<b>🗞 SG Real-Estate Daily — {date}</b>
+<b>🏠 Singapore Property — Daily Update</b>
+<i>{date}</i>
 
-<b>Top 3 things that matter</b>
-- 3 bullets, the most consequential items for SG property, each with a one-line \
-"why it matters".
+<b>In short</b>
+- 1-2 sentences in plain English: the main thing to know today.
 
-<b>Direct impact (SG property)</b>
-- short bullets on HDB / private / policy / rates news, with source in (brackets).
+<b>What's happening</b>
+- 3-4 short, simple bullets on the most relevant news. Explain any technical \
+term in plain words. No brackets or source codes — just clear sentences.
 
-<b>Indirect / global watch</b>
-- short bullets on Fed, China, macro — and the transmission path to SG property.
+<b>What this means for you</b>
+- 2-3 bullets translating the news into everyday impact: home prices, monthly \
+loan repayments, rents, or timing for buyers/sellers.
 
-<b>Bottom line</b>
-- 2-3 sentences: net read for the SG market today, and one thing to watch next.
+<b>The bottom line</b>
+- 1-2 friendly sentences wrapping up, plus one thing worth keeping an eye on.
 
-Keep the whole thing under ~450 words. If there's genuinely little news, keep it \
-brief rather than padding."""
+Keep it under ~350 words and genuinely easy to understand. If there's little \
+news, keep it short and reassuring rather than padding it out."""
 
 
 def format_articles(grouped):
@@ -203,6 +215,28 @@ def format_articles(grouped):
     return "\n".join(lines)
 
 
+def call_claude(system_prompt, user_msg, max_tokens=2500):
+    """Single Claude API call. Reused by both the daily and weekly jobs."""
+    resp = requests.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": SETTINGS["model"],
+            "max_tokens": max_tokens,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_msg}],
+        },
+        timeout=120,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return "".join(b.get("text", "") for b in data.get("content", [])).strip()
+
+
 def analyse(grouped):
     if not grouped:
         return ("<b>🗞 SG Real-Estate Daily</b>\n\nNo articles passed the "
@@ -213,25 +247,7 @@ def analyse(grouped):
     today = datetime.now(timezone.utc).astimezone(
         timezone(timedelta(hours=8))).strftime("%a %d %b %Y")   # SGT
     user_msg = USER_TEMPLATE.format(date=today, articles=format_articles(grouped))
-
-    resp = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        json={
-            "model": SETTINGS["model"],
-            "max_tokens": 2500,
-            "system": SYSTEM_PROMPT,
-            "messages": [{"role": "user", "content": user_msg}],
-        },
-        timeout=120,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return "".join(b.get("text", "") for b in data.get("content", [])).strip()
+    return call_claude(SYSTEM_PROMPT, user_msg)
 
 
 # ----------------------------------------------------------------------
