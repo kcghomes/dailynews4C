@@ -1,0 +1,30 @@
+name: Daily SG Real-Estate Digest
+
+on:
+  schedule:
+    # cron is in UTC. 23:30 UTC = 07:30 the next morning in Singapore (UTC+8).
+    # Change the time by editing this line: "minute hour * * *"
+    - cron: "30 23 * * *"
+  workflow_dispatch:        # lets you run it manually from the Actions tab
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run digest
+        env:
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python digest.py
