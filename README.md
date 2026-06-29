@@ -44,6 +44,21 @@ That's it. After this it runs automatically every day.
 
 ---
 
+## Weekly review (optional add-on)
+
+There's also a **weekly "week in review"** that pulls the past 7 days and asks
+Claude for the throughline — what shifted and what to watch next week.
+
+To enable it: add `weekly.py` and `.github/workflows/weekly-digest.yml` to your
+repo, and make sure you're using the updated `digest.py` (the weekly reuses its
+code). No new secrets needed — it uses the same three.
+
+It runs **Sunday 18:00 SGT** by default (edit the cron in the weekly workflow to
+change). Test it the same way: Actions tab → "Weekly SG Real-Estate Review" →
+Run workflow. Locally: `python weekly.py --dry-run`.
+
+---
+
 ## Customising
 
 Everything you'd normally change lives in **`config.py`**:
