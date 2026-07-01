@@ -103,3 +103,16 @@ SIGNOFF = (
     '🌐 <a href="https://kcghomes.sg">kcghomes.sg</a>   '
     '📷 <a href="https://instagram.com/kcghomes.sg">@kcghomes.sg</a>'
 )
+
+# -------------------------------------------------------------
+#  TELEGRAM TOPIC  (only needed because the group has "Topics" on)
+# -------------------------------------------------------------
+#  Once a Telegram group turns on Topics, it becomes a "forum", and
+#  the bot can no longer just post to the main chat — it has to say
+#  which topic thread to post into (Telegram calls this a
+#  "message_thread_id"). Without it, sends fail with a 400 error.
+#
+#  Leave this as None if the group does NOT have Topics enabled.
+#  Set it to the topic's thread ID (a number) if it does.
+# -------------------------------------------------------------
+TELEGRAM_TOPIC_ID = 45   # "Daily Digest + Weekly Report" topic, KCG Homes group

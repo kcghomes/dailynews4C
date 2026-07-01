@@ -296,11 +296,14 @@ def build_pdf(report, week_ending, path):
 # =============================================================
 def send_document(path, caption):
     url = f"https://api.telegram.org/bot{digest.TELEGRAM_BOT_TOKEN}/sendDocument"
+    data = {"chat_id": digest.TELEGRAM_CHAT_ID, "caption": caption,
+            "parse_mode": "HTML"}
+    if digest.TELEGRAM_TOPIC_ID:
+        data["message_thread_id"] = digest.TELEGRAM_TOPIC_ID
     with open(path, "rb") as f:
         r = requests.post(
             url,
-            data={"chat_id": digest.TELEGRAM_CHAT_ID, "caption": caption,
-                  "parse_mode": "HTML"},
+            data=data,
             files={"document": (os.path.basename(path), f, "application/pdf")},
             timeout=120,
         )

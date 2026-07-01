@@ -33,6 +33,11 @@ try:
 except ImportError:
     SIGNOFF = ""
 
+try:
+    from config import TELEGRAM_TOPIC_ID
+except ImportError:
+    TELEGRAM_TOPIC_ID = None
+
 # ----------------------------------------------------------------------
 # Optional: load a local .env file when running on your own machine.
 # (On GitHub Actions the secrets are already injected as env vars.)
@@ -331,6 +336,8 @@ def send_telegram(text):
             "parse_mode": "HTML",
             "disable_web_page_preview": True,
         }
+        if TELEGRAM_TOPIC_ID:
+            payload["message_thread_id"] = TELEGRAM_TOPIC_ID
         r = requests.post(url, json=payload, timeout=30)
         if not r.ok:
             # retry once as plain text in case of an HTML parse error
