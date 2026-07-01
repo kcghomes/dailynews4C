@@ -37,6 +37,32 @@ DIRECT_FEEDS = [
     # ("Stacked Homes", "https://stackedhomes.com/feed/"),
 ]
 
+# -------------------------------------------------------------
+#  CATEGORIES -> used by the DAILY digest to split the write-up
+#  into a "Property News" section and a "Finance & Economy" section.
+#
+#  Every label above (from TOPICS and DIRECT_FEEDS) should appear in
+#  exactly one of the two lists below. If you add a new topic and
+#  forget to put it here, digest.py defaults it to "property" and
+#  prints a warning in the run log so you notice and can fix it.
+# -------------------------------------------------------------
+CATEGORIES = {
+    "property": [
+        "SG Property Market",
+        "SG Private / Condo",
+        "SG HDB Resale",
+        "SG Policy / Cooling",
+        "China Property",
+    ],
+    "finance": [
+        "SG Rates / Mortgage",
+        "MAS / SG Economy",
+        "US Fed / Rates",
+        "Global Macro",
+        "US Federal Reserve (press releases)",
+    ],
+}
+
 SETTINGS = {
     # Only consider articles published within this many hours of run time.
     # 30 gives a little overlap so nothing slips through the cracks.
@@ -77,4 +103,3 @@ SIGNOFF = (
     '🌐 <a href="https://kcghomes.sg">kcghomes.sg</a>   '
     '📷 <a href="https://instagram.com/kcghomes.sg">@kcghomes.sg</a>'
 )
-

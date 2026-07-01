@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 import feedparser
 
-from config import TOPICS, DIRECT_FEEDS, SETTINGS
+from config import TOPICS, DIRECT_FEEDS, SETTINGS, CATEGORIES
 
 try:
     from config import SIGNOFF
@@ -162,6 +162,32 @@ def fetch_recent(lookback_hours=None, max_per_topic=None,
 
 
 # ----------------------------------------------------------------------
+# 1b. CATEGORY SPLIT (daily digest only — property vs finance/economy)
+# ----------------------------------------------------------------------
+def split_by_category(grouped):
+    """Split a {label: [items]} dict into (property_grouped, finance_grouped)
+    using the CATEGORIES map in config.py. A label that isn't listed there
+    defaults to 'property' and prints a warning, so a newly-added topic
+    doesn't silently vanish from the digest."""
+    label_to_cat = {}
+    for cat, labels in CATEGORIES.items():
+        for label in labels:
+            label_to_cat[label] = cat
+
+    property_grouped, finance_grouped = {}, {}
+    for label, items in grouped.items():
+        cat = label_to_cat.get(label)
+        if cat is None:
+            print(f"  ! '{label}' isn't listed in config.CATEGORIES — "
+                  f"defaulting to 'property'. Add it to config.py to fix.",
+                  file=sys.stderr)
+            cat = "property"
+        target = property_grouped if cat == "property" else finance_grouped
+        target[label] = items
+    return property_grouped, finance_grouped
+
+
+# ----------------------------------------------------------------------
 # 2. ANALYSE (Claude)
 # ----------------------------------------------------------------------
 SYSTEM_PROMPT = """You write a short, friendly daily update about the Singapore \
@@ -178,35 +204,50 @@ loan/mortgage repayments, rents, or whether it's a good time to act.
 - Be warm and helpful, never alarmist. Calm, balanced tone.
 - Be accurate. Only use what's in the headlines. If something is uncertain, say \
 "early signs suggest" rather than stating it as fact. Don't invent numbers.
-- Prefer trustworthy news sources. If the day is quiet, just say so briefly."""
+- Prefer trustworthy news sources. If a section is quiet, just say so briefly."""
 
-USER_TEMPLATE = """Here are today's news headlines, grouped by topic. Date: {date}.
+USER_TEMPLATE = """Here are today's news headlines, already split into two \
+groups. Date: {date}.
 
-{articles}
+PROPERTY NEWS:
+{property_articles}
+
+FINANCE & ECONOMY NEWS:
+{finance_articles}
 
 Write a short, friendly daily update for ordinary readers. Use ONLY <b>bold</b> \
 tags for headers (no markdown, no other HTML — it goes to Telegram). Use simple \
-language someone can forward to clients as-is.
+language someone can forward to clients as-is. Keep property news and finance/\
+economy news in their own separate sections — don't mix them together.
 
 <b>🏠 Singapore Property — Daily Update</b>
 <i>{date}</i>
 
 <b>In short</b>
-- 1-2 sentences in plain English: the main thing to know today.
+- 1-2 sentences in plain English: the main thing to know today, across both \
+property and finance/economy news.
 
-<b>What's happening</b>
-- 3-4 short, simple bullets on the most relevant news. Explain any technical \
-term in plain words. No brackets or source codes — just clear sentences.
+<b>🏠 Property News</b>
+- 2-3 short, simple bullets based ONLY on the PROPERTY NEWS above (HDB, condo, \
+cooling measures, etc). If there's no property news today, say so briefly in \
+one line instead of forcing bullets.
+
+<b>💰 Finance & Economy</b>
+- 2-3 short, simple bullets based ONLY on the FINANCE & ECONOMY NEWS above \
+(interest rates, MAS, the Fed, global economy). Explain any technical term in \
+plain words. If there's no finance news today, say so briefly in one line \
+instead of forcing bullets.
 
 <b>What this means for you</b>
-- 2-3 bullets translating the news into everyday impact: home prices, monthly \
-loan repayments, rents, or timing for buyers/sellers.
+- 2-3 bullets translating both sections into everyday impact: home prices, \
+monthly loan repayments, rents, or timing for buyers/sellers.
 
 <b>The bottom line</b>
 - 1-2 friendly sentences wrapping up, plus one thing worth keeping an eye on.
 
-Keep it under ~350 words and genuinely easy to understand. If there's little \
-news, keep it short and reassuring rather than padding it out."""
+Keep it under ~400 words and genuinely easy to understand. If a section has \
+little or no news, keep that part short and reassuring rather than padding it \
+out."""
 
 
 def format_articles(grouped):
@@ -249,9 +290,15 @@ def analyse(grouped):
                 f"{SETTINGS['lookback_hours']}h. Either a quiet news day or a "
                 "feed issue — run <code>--check</code> to verify the feeds.")
 
+    property_grouped, finance_grouped = split_by_category(grouped)
+
     today = datetime.now(timezone.utc).astimezone(
         timezone(timedelta(hours=8))).strftime("%a %d %b %Y")   # SGT
-    user_msg = USER_TEMPLATE.format(date=today, articles=format_articles(grouped))
+    user_msg = USER_TEMPLATE.format(
+        date=today,
+        property_articles=format_articles(property_grouped) or "(none today)",
+        finance_articles=format_articles(finance_grouped) or "(none today)",
+    )
     return call_claude(SYSTEM_PROMPT, user_msg)
 
 
